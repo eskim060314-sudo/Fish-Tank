@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fish Tank — A Shared Virtual Aquarium</title>
+  
+  <!-- Google Fonts: Pixelify Sans for retro headers, Quicksand for clean friendly text -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Stylesheet -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Header Bar -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-container">
+        <!-- Cute pixel art fish SVG icon -->
+        <svg class="header-fish-icon" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect x="8" y="10" width="16" height="12" rx="4" fill="#FFAAA6"/>
+          <polygon points="4,8 4,24 10,16" fill="#FF8B8B"/>
+          <circle cx="20" cy="14" r="2.5" fill="#2E4A62"/>
+          <circle cx="21" cy="13" r="1" fill="#FFFFFF"/>
+          <path d="M 23 18 Q 21 20 19 18" stroke="#2E4A62" stroke-width="1.5" stroke-linecap="round" fill="none"/>
+          <ellipse cx="14" cy="18" rx="2" ry="3" fill="#FFCCD5" transform="rotate(20 14 18)"/>
+        </svg>
+        <div class="header-titles">
+          <h1 class="tank-title">FISH TANK</h1>
+          <p class="tank-subtitle">A little aquarium for everyone’s fish.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <!-- Live Resident Counter -->
+      <div class="resident-counter-pill" id="residentCounterBadge" title="Total fish living in the tank">
+        <span class="bubble-dot"></span>
+        <span id="counterText">RESIDENTS: 0</span>
+      </div>
+
+      <!-- Storage Mode Indicator (LocalStorage vs Firestore) -->
+      <div class="storage-badge" id="storageModeBadge" title="Current data storage mode">
+        <span class="badge-icon" id="storageBadgeIcon">💾</span>
+        <span class="badge-text" id="storageBadgeText">Local Mode</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Aquarium Tank Screen -->
+  <main class="aquarium-container" id="aquariumContainer">
+    <!-- p5.js canvas will be inserted here -->
+    <div id="canvasWrapper" class="canvas-wrapper"></div>
+
+    <!-- Empty Tank State Overlay -->
+    <div id="emptyTankOverlay" class="empty-tank-overlay hidden">
+      <div class="empty-state-card">
+        <div class="lonely-fish-icon">🫧 🐟 🫧</div>
+        <h2>It’s a little lonely in here…</h2>
+        <p>No fish are swimming right now. Be the very first person to create one!</p>
+        <button id="emptyAddFishBtn" class="retro-btn btn-primary">
+          <span class="btn-icon">✨</span> BE THE FIRST TO ADD A FISH!
+        </button>
+      </div>
+    </div>
+
+    <!-- Loading State Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+      <div class="loading-card">
+        <div class="loading-bubbles">
+          <span class="bubble b1">🫧</span>
+          <span class="bubble b2">🐠</span>
+          <span class="bubble b3">🫧</span>
+        </div>
+        <p class="loading-text">Gathering the fish…</p>
+      </div>
+    </div>
+
+    <!-- Floating Quick Actions (Top-right inside tank) -->
+    <div class="tank-floating-controls">
+      <button id="tankFeedBtn" class="retro-btn btn-action" title="Drop food into the aquarium">
+        <span class="btn-icon">🍤</span> FEED THE FISH
+      </button>
+      <button id="clearTankBtn" class="retro-btn btn-subtle" title="Reset sample fish (localStorage)">
+        <span class="btn-icon">🔄</span> Reset Demo
+      </button>
+    </div>
+
+    <!-- Toast Notification Overlay -->
+    <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+  </main>
+
+  <!-- Bottom Navigation Bar -->
+  <footer class="app-footer">
+    <nav class="bottom-nav">
+      <button id="openAddFishBtn" class="retro-btn btn-primary nav-btn">
+        <span class="btn-icon">➕</span> ADD A FISH
+      </button>
+      <button id="navFeedFishBtn" class="retro-btn btn-feed nav-btn">
+        <span class="btn-icon">🍤</span> FEED THE FISH
+      </button>
+      <button id="openDirectoryBtn" class="retro-btn btn-secondary nav-btn">
+        <span class="btn-icon">📖</span> FISH DIRECTORY
+      </button>
+      <button id="openAboutBtn" class="retro-btn btn-tertiary nav-btn">
+        <span class="btn-icon">ℹ️</span> ABOUT
+      </button>
+    </nav>
+  </footer>
+
+  <!-- ============================================== -->
+  <!-- MODAL: ADD A FISH                              -->
+  <!-- ============================================== -->
+  <div id="addFishModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="addFishTitle">
+    <div class="modal-card modal-medium">
+      <div class="modal-header">
+        <h2 id="addFishTitle" class="pixel-heading">✨ DESIGN YOUR FISH</h2>
+        <button class="modal-close-btn" data-close="addFishModal" aria-label="Close dialog">✖</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="creator-layout">
+          <!-- Live Preview Canvas -->
+          <div class="preview-panel">
+            <span class="preview-label">LIVE PREVIEW</span>
+            <div id="previewCanvasContainer" class="preview-canvas-box">
+              <!-- Live preview canvas created by preview script -->
+            </div>
+            <p class="preview-hint" id="previewPersonalityHint">"Feeling playful and cozy!"</p>
+          </div>
+
+          <!-- Fish Customization Form -->
+          <form id="createFishForm" class="fish-form" onsubmit="return false;">
+            <!-- Fish Name -->
+            <div class="form-group">
+              <label for="fishNameInput" class="form-label">
+                Fish Name <span class="required-star">*</span>
+                <span class="char-counter" id="nameCharCount">0/20</span>
+              </label>
+              <input 
+                type="text" 
+                id="fishNameInput" 
+                name="fishName" 
+                maxlength="20" 
+                placeholder="e.g. Mr. Bubbles" 
+                class="retro-input" 
+                required 
+                autocomplete="off"
+              />
+              <span class="form-error" id="nameError"></span>
+            </div>
+
+            <!-- Fish Color (6 Colors: Pink, Blue, Yellow, Orange, Purple, Green) -->
+            <div class="form-group">
+              <label class="form-label">Fish Color <span class="required-star">*</span></label>
+              <div class="color-options-grid" id="colorPickerGroup">
+                <button type="button" class="color-swatch-btn active" data-color="pink" title="Pastel Pink" style="--swatch-color: #FF8BA7;">
+                  <span class="swatch-indicator"></span>
+                  <span class="swatch-label">Pink</span>
+                </button>
+                <button type="button" class="color-swatch-btn" data-color="blue" title="Pastel Blue" style="--swatch-color: #54A0FF;">
+                  <span class="swatch-indicator"></span>
+                  <span class="swatch-label">Blue</span>
+                </button>
+                <button type="button" class="color-swatch-btn" data-color="yellow" title="Soft Yellow" style="--swatch-color: #FECA57;">
+                  <span class="swatch-indicator"></span>
+                  <span class="swatch-label">Yellow</span>
+                </button>
+                <button type="button" class="color-swatch-btn" data-color="orange" title="Muted Orange" style="--swatch-color: #FF9F43;">
+                  <span class="swatch-indicator"></span>
+                  <span class="swatch-label">Orange</span>
+                </button>
+                <button type="button" class="color-swatch-btn" data-color="purple" title="Lilac Purple" style="--swatch-color: #A55EEA;">
+                  <span class="swatch-indicator"></span>
+                  <span class="swatch-label">Purple</span>
+                </button>
+                <button type="button" class="color-swatch-btn" data-color="green" title="Seafoam Green" style="--swatch-color: #1DD1A1;">
+                  <span class="swatch-indicator"></span>
+                  <span class="swatch-label">Green</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Fish Size (Small, Medium, Large) -->
+            <div class="form-group">
+              <label class="form-label">Fish Size <span class="required-star">*</span></label>
+              <div class="pill-group" id="sizePickerGroup">
+                <button type="button" class="pill-choice" data-size="small">
+                  <span>Small</span>
+                </button>
+                <button type="button" class="pill-choice active" data-size="medium">
+                  <span>Medium</span>
+                </button>
+                <button type="button" class="pill-choice" data-size="large">
+                  <span>Large</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Fish Personality (Lazy, Dramatic, Angry, Silly, Shy, Energetic) -->
+            <div class="form-group">
+              <label class="form-label">Personality <span class="required-star">*</span></label>
+              <div class="personality-grid" id="personalityPickerGroup">
+                <button type="button" class="personality-btn active" data-personality="lazy" title="Swims slowly and takes naps">
+                  <span class="p-icon">💤</span>
+                  <span class="p-title">Lazy</span>
+                </button>
+                <button type="button" class="personality-btn" data-personality="dramatic" title="Makes majestic swoops and somersaults">
+                  <span class="p-icon">🎭</span>
+                  <span class="p-title">Dramatic</span>
+                </button>
+                <button type="button" class="personality-btn" data-personality="angry" title="Speedy, snappy, furrowed brow">
+                  <span class="p-icon">💢</span>
+                  <span class="p-title">Angry</span>
+                </button>
+                <button type="button" class="personality-btn" data-personality="silly" title="Wobbly swimming and goofy spins">
+                  <span class="p-icon">🤪</span>
+                  <span class="p-title">Silly</span>
+                </button>
+                <button type="button" class="personality-btn" data-personality="shy" title="Hangs near plants and bottom sand">
+                  <span class="p-icon">🙈</span>
+                  <span class="p-title">Shy</span>
+                </button>
+                <button type="button" class="personality-btn" data-personality="energetic" title="Super fast swimmer with endless zoomies">
+                  <span class="p-icon">⚡</span>
+                  <span class="p-title">Energetic</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Owner Name (Optional, defaults to Anonymous) -->
+            <div class="form-group">
+              <label for="ownerNameInput" class="form-label">
+                Owner Name <span class="optional-tag">(Optional)</span>
+              </label>
+              <input 
+                type="text" 
+                id="ownerNameInput" 
+                name="ownerName" 
+                maxlength="25" 
+                placeholder="Leave blank for 'Anonymous'" 
+                class="retro-input" 
+                autocomplete="off"
+              />
+            </div>
+
+            <!-- Submit Button -->
+            <div class="form-actions">
+              <button type="submit" id="submitFishBtn" class="retro-btn btn-primary submit-btn">
+                <span class="btn-icon">🌊</span> RELEASE INTO THE TANK!
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: FISH PROFILE CARD                       -->
+  <!-- ============================================== -->
+  <div id="fishProfileModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="profileTitle">
+    <div class="modal-card modal-profile">
+      <div class="modal-header">
+        <h2 id="profileTitle" class="pixel-heading">FISH PROFILE</h2>
+        <button class="modal-close-btn" data-close="fishProfileModal" aria-label="Close dialog">✖</button>
+      </div>
+      <div class="modal-body profile-body">
+        <div class="profile-avatar-box" id="profileAvatarBox">
+          <!-- Rendered fish avatar preview -->
+        </div>
+
+        <div class="profile-details-table">
+          <div class="profile-row">
+            <span class="row-label">Name:</span>
+            <span class="row-value font-bold" id="profileName">Mr. Bubbles</span>
+          </div>
+          <div class="profile-row">
+            <span class="row-label">Color:</span>
+            <span class="row-value" id="profileColor">Blue</span>
+          </div>
+          <div class="profile-row">
+            <span class="row-label">Size:</span>
+            <span class="row-value" id="profileSize">Small</span>
+          </div>
+          <div class="profile-row">
+            <span class="row-label">Personality:</span>
+            <span class="row-value" id="profilePersonality">Dramatic</span>
+          </div>
+          <div class="profile-row">
+            <span class="row-label">Owner:</span>
+            <span class="row-value" id="profileOwner">Anonymous</span>
+          </div>
+          <div class="profile-row">
+            <span class="row-label">Occupation:</span>
+            <span class="row-value badge-occupation" id="profileOccupation">Professional Bubble Watcher</span>
+          </div>
+          <div class="profile-row">
+            <span class="row-label">Born:</span>
+            <span class="row-value font-mono" id="profileBorn">November 23, 2026</span>
+          </div>
+        </div>
+
+        <div class="profile-actions">
+          <button id="profileFollowBtn" class="retro-btn btn-secondary">
+            <span class="btn-icon">🎯</span> Watch Swim
+          </button>
+          <button class="retro-btn btn-subtle" data-close="fishProfileModal">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: FISH DIRECTORY                          -->
+  <!-- ============================================== -->
+  <div id="directoryModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="directoryTitle">
+    <div class="modal-card modal-large">
+      <div class="modal-header">
+        <div>
+          <h2 id="directoryTitle" class="pixel-heading">FISH DIRECTORY</h2>
+          <p class="directory-counter-sub" id="directoryResidentsCounter">CURRENT RESIDENTS: 0 FISH</p>
+        </div>
+        <button class="modal-close-btn" data-close="directoryModal" aria-label="Close dialog">✖</button>
+      </div>
+
+      <div class="modal-body">
+        <!-- Search and Filter Bar -->
+        <div class="directory-filter-bar">
+          <div class="search-input-wrapper">
+            <span class="search-icon">🔍</span>
+            <input 
+              type="text" 
+              id="directorySearchInput" 
+              placeholder="Search fish by name or owner..." 
+              class="retro-input search-input"
+            />
+          </div>
+
+          <div class="filter-pills" id="directoryFilterPills">
+            <button class="filter-pill active" data-filter="all">All</button>
+            <button class="filter-pill" data-filter="pink">Pink</button>
+            <button class="filter-pill" data-filter="blue">Blue</button>
+            <button class="filter-pill" data-filter="yellow">Yellow</button>
+            <button class="filter-pill" data-filter="orange">Orange</button>
+            <button class="filter-pill" data-filter="purple">Purple</button>
+            <button class="filter-pill" data-filter="green">Green</button>
+          </div>
+        </div>
+
+        <!-- Fish Grid Container -->
+        <div class="directory-grid" id="directoryGrid">
+          <!-- Populated dynamically with fish cards -->
+        </div>
+
+        <!-- Directory Empty Message -->
+        <div id="directoryEmptyMsg" class="directory-empty hidden">
+          <p>No fish found matching your search. 🫧</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================== -->
+  <!-- MODAL: ABOUT                                   -->
+  <!-- ============================================== -->
+  <div id="aboutModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="aboutTitle">
+    <div class="modal-card modal-medium">
+      <div class="modal-header">
+        <h2 id="aboutTitle" class="pixel-heading">ABOUT FISH TANK</h2>
+        <button class="modal-close-btn" data-close="aboutModal" aria-label="Close dialog">✖</button>
+      </div>
+      <div class="modal-body about-body">
+        <div class="about-quote-box">
+          <p class="primary-about-text">
+            “Fish Tank is a shared virtual aquarium where anyone can create a fish and release it into the water. Every fish has its own name, personality, and story. Over time, the aquarium grows as more people contribute their fish.”
+          </p>
+          <p class="secondary-about-text">
+            “Created as an Interactive Media Arts project exploring time, shared spaces, and data storage.”
+          </p>
+        </div>
+
+        <div class="about-info-grid">
+          <div class="info-card">
+            <div class="info-icon">📦</div>
+            <h3>1. JSON Data</h3>
+            <p>Every fish is represented as a pure JavaScript Object converted to JSON with its unique ID, custom colors, size, silly occupation, and ISO timestamp.</p>
+          </div>
+          <div class="info-card">
+            <div class="info-icon">💾</div>
+            <h3>2. localStorage</h3>
+            <p>Enables instant local persistence using <code>JSON.stringify()</code> and <code>JSON.parse()</code> so your aquarium is preserved right in your browser offline.</p>
+          </div>
+          <div class="info-card">
+            <div class="info-icon">🔥</div>
+            <h3>3. Firebase Firestore</h3>
+            <p>A cloud database with real-time listeners (<code>onSnapshot</code>) allowing fish created across different computers to swim together in the same tank.</p>
+          </div>
+        </div>
+
+        <div class="firebase-status-card" id="aboutFirebaseStatusCard">
+          <div class="fb-status-icon" id="aboutFbIcon">⚙️</div>
+          <div class="fb-status-content">
+            <h4 id="aboutFbTitle">Database Status: Local Demo Mode</h4>
+            <p id="aboutFbDescription">
+              Running locally with browser storage. To connect your cloud Firestore database, paste your credentials into <code>firebase-config.js</code>!
+            </p>
+          </div>
+        </div>
+
+        <div class="about-actions">
+          <button class="retro-btn btn-primary" data-close="aboutModal">
+            Back to Aquarium
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- External Libraries -->
+  <!-- p5.js for canvas drawing and animations -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+
+  <!-- Firebase SDK (v10 compat mode for beginner-friendly, bundler-free vanilla browser scripts) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+  <!-- Project Application Scripts -->
+  <script src="firebase-config.js"></script>
+  <script src="storage.js"></script>
+  <script src="fish.js"></script>
+  <script src="aquarium.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
+
